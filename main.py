@@ -8,7 +8,9 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import time
 import heapq
 import tracemalloc
+
 route_data_collections = []
+
 # Function to load city data from a CSV file
 def load_cities(file_path):
     cities = {}
@@ -40,8 +42,8 @@ def load_adjacencies(file_path, cities):
 
     return adjacencies, distances
 
-def distance(lat1, lon1, lat2, lon2):
-    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+def distance(lat1, lon1, lat2, lon2): # Function to calculate the distance between two points on Earth
+    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2]) # Convert to radians
     dlon = lon2 - lon1
     dlat = lat2 - lat1
     a = math.sin(dlat / 2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2)**2
@@ -138,14 +140,16 @@ def breadth_first_search(start, goal, adjacencies, distances):
 
     return traversal_path, None, traversal_edges 
  
+ # Depth-First Search algorithm for route finding
 def depth_first_search(start, goal, adjacencies):
-    stack = [(start, [start])]  # Use a stack for
+    stack = [(start, [start])]  # Use stack for DFS (current_city, path)
     visited = set()
     traversal_path = []
     traversal_edges = []
 
     while stack:
         current_city, path = stack.pop()
+
         if current_city == start:
             traversal_edges.append((start, current_city))
         else: 
@@ -158,17 +162,18 @@ def depth_first_search(start, goal, adjacencies):
         
         for neighbor in adjacencies[current_city]:
             if neighbor not in visited:
-                stack.append((neighbor, path + [neighbor]))
+                stack.append((neighbor, path + [neighbor]))  # Add to stack for further exploration
         prev_city = current_city
     return traversal_path, None, traversal_edges 
 
+# Helper function to perform Depth-Limited Search up to a certain depth limit
 def depth_limited_search(city, goal, adjacencies, depth, traversal_path, path, traversal_edges):
     traversal_path.append(city)
     if depth == 0 and city == goal:
         return True
     if depth > 0:
         for neighbor in adjacencies[city]:
-            if neighbor not in traversal_path:
+            if neighbor not in traversal_path:  # Avoid cycles by skipping visited cities
                 traversal_edges.append((city, neighbor))
                 path.append(neighbor)
                 if depth_limited_search(neighbor, goal, adjacencies, depth - 1, traversal_path, path, traversal_edges):
@@ -176,6 +181,7 @@ def depth_limited_search(city, goal, adjacencies, depth, traversal_path, path, t
                 path.pop()  # Backtrack
     return False
 
+# Iterative Deepening Depth-First Search (IDDFS) algorithm for route finding
 def iddfs(start, goal, adjacencies, max_depth=50):
     for depth in range(max_depth):
         traversal_path = []
@@ -192,25 +198,34 @@ def heuristic(current_city, goal_city, cities):
     return distance(lat1, lon1, lat2, lon2)
 
 def best_first_search(start, goal, adjacencies, cities):
+    # Priority queue (min-heap) initialized with the start city, a heuristic value of 0, and the path containing just the start
     pq = [(0,start,[start])]
     visited = set()
     traversal_edges = []
     traversal_path = []
+    came_from = {}
 
     while pq:
+        # Pop the city with the lowest heuristic value (h_value) from the priority queue
         h_value, current_city, path = heapq.heappop(pq)
         traversal_path.append(current_city)
         visited.add(current_city)   
 
+        if current_city != start:
+            traversal_edges.append((came_from[current_city], current_city))
+
+        # If the goal city is reached, return the exploration order, the path to the goal, and the traversal edges
         if current_city == goal:
             return traversal_path,path,traversal_edges
         
+        # Explore each neighboring city of the current city
         for neighbor in adjacencies[current_city]:
             if neighbor not in visited:
                 visited.add(neighbor)
-                traversal_edges.append((current_city,neighbor))
-                h_neighbor = heuristic(neighbor,goal,cities)
+                h_neighbor = heuristic(neighbor,goal,cities) # Compute the heuristic value for the neighbor
+                # Push the neighbor onto the priority queue with its heuristic value, the neighbor itself, and the updated path
                 heapq.heappush(pq,(h_neighbor, neighbor, path +[neighbor]))
+                came_from[neighbor] = current_city
     return traversal_path, None, traversal_edges
 
 def a_star_search(start, goal, adjacencies, cities):
@@ -220,27 +235,35 @@ def a_star_search(start, goal, adjacencies, cities):
     g = {start: 0}
     traversal_edges = []
     traversal_path = []
+    came_from = {}
 
     while open_set:
         _, current_city, path = heapq.heappop(open_set)
         traversal_path.append(current_city)
 
+        if current_city != start:
+            traversal_edges.append((came_from[current_city], current_city))
         if current_city == goal:
             return traversal_path, path, traversal_edges
-
+        
         closed_set.add(current_city)
 
         for neighbor in adjacencies[current_city]:
             if neighbor in closed_set:
                 continue
-
+            
+             # Calculate the tentative g-value (cost from the start to this neighbor)
             tentative_g = g[current_city] + distances[(current_city, neighbor)]
 
+            # If this path to the neighbor is shorter or if the neighbor hasn't been explored yet
             if neighbor not in g or tentative_g < g[neighbor]:
                 g[neighbor] = tentative_g
-                f = tentative_g + heuristic(neighbor, goal, cities)
+                f = tentative_g + heuristic(neighbor, goal, cities)  # Calculate the f-value (g + heuristic h)
+                # Add the neighbor to the open set with its f-value, updated path, and position in the graph
                 heapq.heappush(open_set, (f, neighbor, path + [neighbor]))
-                traversal_edges.append((current_city, neighbor))
+                came_from[neighbor] = current_city
+        
+            
 
     return traversal_path, None, traversal_edges
 
